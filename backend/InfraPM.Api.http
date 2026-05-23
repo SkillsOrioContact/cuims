@@ -1,0 +1,6 @@
+@InfraPM.Api_HostAddress = http://localhost:5228
+
+GET {{InfraPM.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
