@@ -1,11 +1,19 @@
 "use client";
 
-import { Activity, Folders, Map as MapIcon, Users, AlertCircle, ArrowUpRight, ArrowDownRight, Clock } from "lucide-react";
+import { Activity, Folders, Map as MapIcon, Users, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import dynamic from 'next/dynamic';
+
+const ProjectMap = dynamic(() => import('@/components/maps/ProjectMap'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] w-full flex items-center justify-center bg-muted/20 border border-dashed rounded-md"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+});
 
 // Mock Data
 const kpis = [
@@ -53,6 +61,20 @@ const atRiskProjects = [
 ];
 
 export default function Dashboard() {
+  const { data: projects, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      // In a real environment, this will hit our ASP.NET Backend
+      try {
+        const { data } = await api.get('/projects');
+        return data;
+      } catch (e) {
+        // Fallback to mock data if backend isn't running yet during scaffolding
+        return atRiskProjects;
+      }
+    }
+  });
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
@@ -97,17 +119,13 @@ export default function Dashboard() {
           {/* Main Chart Placeholder */}
           <Card className="col-span-4">
             <CardHeader>
-              <CardTitle>Project Status by Region</CardTitle>
+              <CardTitle>Geographic Distribution</CardTitle>
               <CardDescription>
-                Visual distribution of infrastructure projects.
+                Live OpenStreetMap tracking of infrastructure projects.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pl-2">
-              <div className="h-[300px] w-full bg-muted/20 rounded-md border border-dashed flex items-center justify-center flex-col">
-                 <MapIcon className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
-                 <p className="text-sm text-muted-foreground">Chart Component Placeholder (Recharts)</p>
-                 <p className="text-xs text-muted-foreground mt-2">Connecting to ASP.NET API in Phase 3</p>
-              </div>
+            <CardContent>
+               <ProjectMap projects={projects || []} />
             </CardContent>
           </Card>
 
@@ -158,9 +176,15 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {atRiskProjects.map((project) => (
+                {isProjectsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ) : projects?.map((project: any) => (
                   <TableRow key={project.id}>
-                    <TableCell className="font-medium">{project.id}</TableCell>
+                    <TableCell className="font-medium">{project.id.toString().substring(0,8)}</TableCell>
                     <TableCell>{project.name}</TableCell>
                     <TableCell>{project.region}</TableCell>
                     <TableCell>{project.manager}</TableCell>

@@ -2,17 +2,28 @@ using InfraPM.Api.Domain.Entities;
 using InfraPM.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 // Configure PostgreSQL Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=InfraPM;Username=postgres;Password=postgres";
+var connectionString = Environment.GetEnvironmentVariable("INFRAPM_DB_CONNECTION")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Database connection string not found. Please set INFRAPM_DB_CONNECTION environment variable.");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<InfraPM.Api.Infrastructure.Interceptors.AuditInterceptor>();
+
+builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+{
+    var interceptor = sp.GetRequiredService<InfraPM.Api.Infrastructure.Interceptors.AuditInterceptor>();
+    options.UseNpgsql(connectionString)
+           .AddInterceptors(interceptor);
+});
 
 // Configure ASP.NET Core Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -26,10 +37,64 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.SaveToken = true;
+    options.RequireHttpsMetadata = false;
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["JWT:ValidAudience"],
+        ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+            Environment.GetEnvironmentVariable("INFRAPM_JWT_SECRET") ??
+            builder.Configuration["JWT:Secret"] ??
+            throw new InvalidOperationException("JWT Secret not found in environment or config.")))
+    };
+
+    // Crucial: Extract token from HttpOnly cookie instead of the Authorization header
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (context.Request.Cookies.ContainsKey("jwt"))
+            {
+                context.Token = context.Request.Cookies["jwt"];
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Required for sending HTTP-only cookies
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddControllers();
+
 var app = builder.Build();
+
+app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
