@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.Extensions.FileProviders;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,7 +79,15 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004")
+        // For production, allow the FRONTEND_URL env var. For dev, allow localhost.
+        var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
+        var allowedOrigins = new List<string> { "http://localhost:3000", "http://localhost:3001" };
+        if (!string.IsNullOrEmpty(frontendUrl))
+        {
+            allowedOrigins.Add(frontendUrl);
+        }
+
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Required for sending HTTP-only cookies
@@ -91,9 +101,39 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
+// Automatically apply pending migrations and seed the database on startup
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        if (context.Database.IsRelational())
+        {
+            context.Database.Migrate();
+        }
+        await DbSeeder.SeedSuperuserAsync(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+    }
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Serve static images from the Storage directory
+var storagePath = Path.Combine(builder.Environment.ContentRootPath, "Storage");
+Directory.CreateDirectory(storagePath); // Ensure it exists
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storagePath),
+    RequestPath = "/storage"
+});
+
 app.MapControllers();
 
 // Configure the HTTP request pipeline.

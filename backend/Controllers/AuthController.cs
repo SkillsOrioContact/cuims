@@ -61,8 +61,9 @@ namespace InfraPM.Api.Controllers
             Response.Cookies.Append("jwt", tokenString, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = true, // Require HTTPS in production
-                SameSite = SameSiteMode.Strict,
+                // Only require Secure (HTTPS) if not running in development
+                Secure = !_configuration.GetValue<bool>("DisableSecureCookiesForLocalDev", false),
+                SameSite = SameSiteMode.Lax, // Relaxed from Strict to allow local cross-port dev
                 Expires = DateTime.UtcNow.AddHours(3)
             });
 

@@ -1,13 +1,21 @@
 "use client";
 
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, MessageSquarePlus } from "lucide-react";
 import api from "@/lib/api";
 
 export default function RoleDashboard() {
+  const queryClient = useQueryClient();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({ projectId: "", text: "" });
+
   const { data: comments, isLoading } = useQuery({
     queryKey: ["manager-comments"],
     queryFn: async () => {
@@ -20,13 +28,54 @@ export default function RoleDashboard() {
     }
   });
 
+  const createCommentMutation = useMutation({
+    mutationFn: async (data: any) => await api.post("/projectcomments", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager-comments"] });
+      setShowAddForm(false);
+      setFormData({ projectId: "", text: "" });
+    }
+  });
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Manager Dashboard</h1>
-          <p className="text-muted-foreground mt-1">View your assigned projects and pending feedback.</p>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Manager Dashboard</h1>
+            <p className="text-muted-foreground mt-1">View your assigned projects and pending feedback.</p>
+          </div>
+          <Button onClick={() => setShowAddForm(!showAddForm)}>
+            <MessageSquarePlus className="mr-2 h-4 w-4" /> Add Feedback
+          </Button>
         </div>
+
+        {showAddForm && (
+          <Card className="border-primary/50 shadow-md">
+            <CardHeader>
+              <CardTitle>Submit Project Feedback</CardTitle>
+              <CardDescription>Engineers will review and resolve this item.</CardDescription>
+            </CardHeader>
+            <form onSubmit={(e) => { e.preventDefault(); createCommentMutation.mutate(formData); }}>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Project ID (UUID)</Label>
+                  <Input required value={formData.projectId} onChange={e => setFormData({...formData, projectId: e.target.value})} placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Feedback Details</Label>
+                  <Input required value={formData.text} onChange={e => setFormData({...formData, text: e.target.value})} placeholder="e.g. Safety review required for phase 2." />
+                </div>
+              </CardContent>
+              <div className="px-6 pb-6 flex justify-end gap-2">
+                <Button variant="outline" type="button" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createCommentMutation.isPending}>
+                  {createCommentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit
+                </Button>
+              </div>
+            </form>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

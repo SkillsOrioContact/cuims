@@ -4,3 +4,4 @@ backend/obj/
 backend/bin/
 backend/obj/
 *.log
+.env
