@@ -2,6 +2,9 @@
 
 import { Bell, Search, Menu, User, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -16,6 +19,15 @@ import {
 
 export function Topbar() {
   const { setTheme, theme } = useTheme();
+  const router = useRouter();
+
+  const logoutMutation = useMutation({
+    mutationFn: () => api.post("/auth/logout"),
+    onSuccess: () => {
+      // Force reload to clear client state and redirect due to 401s
+      window.location.href = "/login";
+    },
+  });
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
@@ -71,7 +83,9 @@ export function Topbar() {
           <DropdownMenuItem>Profile</DropdownMenuItem>
           <DropdownMenuItem>Settings</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Logout</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
+            Logout
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

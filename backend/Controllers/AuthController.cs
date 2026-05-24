@@ -74,5 +74,18 @@ namespace InfraPM.Api.Controllers
                 RequiresPasswordChange = user.RequiresPasswordChange
             });
         }
+
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("jwt", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = !_configuration.GetValue<bool>("DisableSecureCookiesForLocalDev", false),
+                SameSite = SameSiteMode.Lax
+            });
+
+            return Ok(new { message = "Logged out successfully" });
+        }
     }
 }

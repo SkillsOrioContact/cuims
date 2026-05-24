@@ -1,11 +1,13 @@
 using InfraPM.Api.Domain.Entities;
 using InfraPM.Api.DTOs;
 using InfraPM.Api.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace InfraPM.Api.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class ProjectsController : ControllerBase

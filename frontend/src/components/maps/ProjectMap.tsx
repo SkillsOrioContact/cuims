@@ -30,8 +30,11 @@ export default function ProjectMap({ projects }: { projects: any[] }) {
     );
   }
 
+  // Flatten projects and subprojects
+  const allProjects = projects.flatMap(p => [p, ...(p.subProjects || [])]);
+
   // Filter projects that actually have coordinates
-  const validProjects = projects.filter(p => p.latitude != null && p.longitude != null);
+  const validProjects = allProjects.filter(p => p.latitude != null && p.longitude != null);
 
   // Default to a central location if no projects (e.g., center of US, or dynamically calculate bounds)
   const defaultCenter: [number, number] = validProjects.length > 0
